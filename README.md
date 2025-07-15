@@ -1,47 +1,95 @@
-# personal-list-plugin-for-rpg-maker-mv
-Personal (NPC) list system for rpg maker mv
+# Personals Plugin for RPG Maker MV
 
-# Personals Plugin
-
-**Version:** 1.0  
 **Author:** Kristof Soczó
+**Version:** 1.0
 
 ## Description
-A lightweight RPG Maker MV plugin that adds a customizable “Personals” menu to your game. Players can collect NPC entries by reading event comments, view face graphics, icons, categories and detailed notes. Other plugins or game events can react when an NPC is added or removed via a simple API.
+
+With this plugin, you can track and list NPCs that the player meets during gameplay. Only NPCs you explicitly add via plugin commands will appear in the list. You can remove entries at any time or update their data.
+
+In the menu, NPC names appear on the left. Selecting a name opens a detail window showing a face graphic, name, category, up to 3 icons, and a potentially long description.
 
 ## Installation
-1. Copy `Personallist.js` into your project's `js/plugins/` folder.  
-2. Open the Plugin Manager, add “Personallist” and configure:
-   - **Menu Title**: The text shown in the menu list (default “Personals”).
-   - **Initially Enabled**: Enable/disable the menu at game start.
-   - **Open Menu Key**: A keyboard key (e.g. “pageup”, “q”) that instantly opens the Personals menu on the map.
+
+1. Place `Personallist.js` in your project's `js/plugins/` folder.
+2. In RPG Maker MV's Plugin Manager, enable **Personallist** and configure the parameters.
+
+## Parameters
+
+* **Menu Title**: Text shown in the menu list (default: `Personals`).
+* **Enable Initially**: Whether the menu is available at game start.
+* **Open Menu Key**: Keyboard key that opens the Personals menu directly (e.g. `pageup`, `q`).
 
 ## Plugin Commands
-Use these in your event’s “Plugin Command” box:
 
-| Command                        | Description                                                                                   |
-|--------------------------------|-----------------------------------------------------------------------------------------------|
-| `EnablePersonalMenu`           | Enables the Personals menu immediately.                                                      |
-| `DisablePersonalMenu`          | Disables the Personals menu so it no longer appears in the menu list.                        |
-| `AddPersonalToList`            | Scans the current event’s comments for an NPC block and adds/updates that entry.             |
-| `AddPersonalToList <id>`       | Finds an NPC with the given ID across all events and adds or updates it in the list.         |
-| `RemovePersonalFromList <id>`  | Removes the NPC with the given ID from the list and triggers any removal callbacks.          |
+Use these commands in an event's **Plugin Command** box:
+
+| Command                       | Effect                                                 |
+| ----------------------------- | ------------------------------------------------------ |
+| `EnablePersonalMenu`          | Enables the Personals menu immediately.                |
+| `DisablePersonalMenu`         | Disables the menu so it no longer appears.             |
+| `AddPersonalToList`           | Adds the NPC defined in the current event's comments.  |
+| `AddPersonalToList <id>`      | Finds NPC by ID across all events and adds/updates it. |
+| `RemovePersonalFromList <id>` | Removes the NPC with the given ID from the list.       |
 
 ## Script Calls
-You can query or hook into the list at runtime:
 
-```js
-// Returns true if NPC with ID 5 is in the player’s list
-if ($gameSystem.isPersonalAdded(5)) {
-  // then-branch…
-}
+* **Check if NPC is in list**:
 
-// Register a callback when NPC 3 is added
-$gameSystem.onPersonalAdded(3, function(id) {
-  console.log(`NPC ${id} was added!`);
-});
+  ```js
+  if ($gameSystem.isPersonalAdded(5)) {  
+    // NPC 5 is in the list  
+  }  
+  ```
 
-// Register a callback when NPC 3 is removed
-$gameSystem.onPersonalRemoved(3, function(id) {
-  console.log(`NPC ${id} was removed!`);
-});
+* **Register callbacks**:
+
+  ```js
+  // When NPC 3 is added:  
+  $gameSystem.onPersonalAdded(3, id => {  
+    console.log(`NPC ${id} added`);  
+  });  
+
+  // When removed:  
+  $gameSystem.onPersonalRemoved(3, id => {  
+    console.log(`NPC ${id} removed`);  
+  });  
+  ```
+
+## Defining NPCs in Event Comments
+
+To make an event’s NPC collectible, include comment lines on that event page. You may split into multiple comment blocks if needed — each block must start with `Type: NPC` and `ID: <same ID>`.
+
+Example block:
+
+```
+Type: NPC
+ID: 1
+Name: John, the Innkeeper
+Category: Bartender
+Face: Actor1, 3
+Icon: 1,2,3    (max 3 icons)
+Details: John has served travelers for years,
+         and always has a story to tell.
+```
+
+* **Type** and **ID** lines are required in each block.
+* Other lines (Name, Category, Face, Icon, Details) can appear in any order.
+
+## Developer API
+
+This plugin exposes a simple API on Game_System to let other plugins or game code react when NPCs are added to or removed from the list.
+
+**Event Hooks**
+
+`$gameSystem.onPersonalAdded(id, callback)` Register a callback that will be invoked when the NPC with the given id is added to the list.
+
+`$gameSystem.onPersonalRemoved(id, callback)` Register a callback that will be invoked when the NPC with the given id is removed from the list.
+
+Both hooks accept either a String or Number for the id, and a Function(id) callback that receives the NPC id as its argument.
+
+**Query Methods**
+
+`$gameSystem.isPersonalAdded(id)` Returns true if the NPC with the specified id is currently in the player’s personal list, otherwise false.
+
+
