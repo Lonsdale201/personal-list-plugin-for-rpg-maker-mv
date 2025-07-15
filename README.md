@@ -7,7 +7,7 @@ Personal (NPC) list system for rpg maker mv
 **Author:** Kristof Soczó
 
 ## Description
-A lightweight RPG Maker MV/MZ plugin that adds a customizable “Personals” menu to your game. Players can collect NPC entries by reading event comments, view face graphics, icons, categories and detailed notes. Other plugins or game events can react when an NPC is added or removed via a simple API.
+A lightweight RPG Maker MV plugin that adds a customizable “Personals” menu to your game. Players can collect NPC entries by reading event comments, view face graphics, icons, categories and detailed notes. Other plugins or game events can react when an NPC is added or removed via a simple API.
 
 ## Installation
 1. Copy `Personallist.js` into your project's `js/plugins/` folder.  
