@@ -1,6 +1,7 @@
 # Personals Plugin for RPG Maker MV
 
 **Author:** Kristof Soczó
+
 **Version:** 1.0
 
 ## Description
