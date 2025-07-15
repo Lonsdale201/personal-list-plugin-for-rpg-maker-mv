@@ -76,6 +76,9 @@ Details: John has served travelers for years,
 * **Type** and **ID** lines are required in each block.
 * Other lines (Name, Category, Face, Icon, Details) can appear in any order.
 
+<img width="1036" height="761" alt="image" src="https://github.com/user-attachments/assets/f9167ad6-cd52-42b2-b8eb-a1a2245c9c1a" />
+
+
 ## Developer API
 
 This plugin exposes a simple API on Game_System to let other plugins or game code react when NPCs are added to or removed from the list.
