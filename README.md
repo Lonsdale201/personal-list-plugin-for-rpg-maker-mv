@@ -30,8 +30,9 @@ Use these commands in an event's **Plugin Command** box:
 | `EnablePersonalMenu`          | Enables the Personals menu immediately.                |
 | `DisablePersonalMenu`         | Disables the menu so it no longer appears.             |
 | `AddPersonalToList`           | Adds the NPC defined in the current event's comments.  |
-| `AddPersonalToList <id>`      | Finds NPC by ID across all events and adds/updates it. |
-| `RemovePersonalFromList <id>` | Removes the NPC with the given ID from the list.       |
+| `AddPersonalToList <id> <id> <id> `     | Finds NPC by ID or ID's across all events and adds/updates it. |
+| `RemovePersonalFromList` | Removes the NPC with the current event/eventpage.       |
+| `RemovePersonalFromList <id>` | Removes the NPC with the given ID or ID's from the list.       |
 
 ## Script Calls
 
