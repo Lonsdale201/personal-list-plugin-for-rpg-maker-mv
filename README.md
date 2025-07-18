@@ -2,7 +2,7 @@
 
 **Author:** Kristof Soczó
 
-**Version:** 1.0
+**Version:** 1.2
 
 ## Description
 
@@ -96,4 +96,14 @@ Both hooks accept either a String or Number for the id, and a Function(id) callb
 
 `$gameSystem.isPersonalAdded(id)` Returns true if the NPC with the specified id is currently in the player’s personal list, otherwise false.
 
+## Changelog
 
+**v1.2** 
+2025.07.18
+
+• Added bulk operations: you can now call
+• AddPersonalToList <id1> <id2> <id3> …
+• RemovePersonalFromList <id1> <id2> …
+to add or remove multiple NPCs in one command.
+• RemovePersonalFromList with no arguments will now remove all NPCs defined
+in the current event page, even if no ID is supplied.
