@@ -1,5 +1,5 @@
 /*:
- * @plugindesc Custom “Personals” menu that displays NPC data in the player’s menu. - v1.0
+ * @plugindesc Custom “Personals” menu that displays NPC data in the player’s menu. – v1.2
  * @author Kristof Soczo
  *
  * @param menuTitle
@@ -21,47 +21,25 @@
  * @default pageup
  * @desc The key name used to open the Personals menu directly (e.g. "pageup", "pagedown", "F5").
  *
- * 
-/*:
- * @plugindesc Custom “Personals” menu, displaying NPC data in the player’s menu. - v1.0
- * @author Soczó Kristóf
- *
- * @param menuTitle
- * @text Menu Title
- * @type string
- * @default Personals
- *
- * @param enableInitial
- * @text Enable Initially
- * @type boolean
- * @on Enable
- * @off Disable
- * @desc Should the menu be available by default? If Disable, only plugin commands open it.
- * @default true
- *
- * @param openMenuKey
- * @text Open Menu Key
- * @type string
- * @default pageup
- * @desc The key name that opens the Personals menu immediately (e.g. "pageup", "pagedown", "F5", etc.).
- *
  * @help
+ *
  * === Plugin Commands ===
  * EnablePersonalMenu
  *     Enables the Personals menu.
  * DisablePersonalMenu
  *     Disables the Personals menu.
  * AddPersonalToList
- *     Adds the NPC defined in the current event’s comments to the list.
- * AddPersonalToList <id>
- *     Finds the NPC with the given ID across all events and adds or updates it.
- * RemovePersonalFromList <id>
- *     Removes the NPC with the given ID from the list.
+ *     Adds all NPCs defined in the current event’s comments to the list.
+ * AddPersonalToList <id1> <id2> …
+ *     Finds the NPCs with the given IDs across all events and adds or updates them.
+ * RemovePersonalFromList
+ *     Removes all NPCs defined in the current event’s comments.
+ * RemovePersonalFromList <id1> <id2> …
+ *     Removes the NPCs with the given IDs from the list.
  *
  * === Script Calls ===
  * $gameSystem.isPersonalAdded(<id>)
  *     Returns true if the NPC with the given ID is currently in the player’s list.
- *     Replace <id> with any valid NPC ID.
  *
  * === NPC Definition in Event Comments ===
  * In order for AddPersonalToList to pick up an NPC, your event page must include comment lines like this:
@@ -71,7 +49,7 @@
  *   Name: John, the Innkeeper
  *   Category: Bartender
  *   Face: Actor1, 3
- *   Icon: 1,2,3 (max 3 icon)
+ *   Icon: 1,2,3 (max 3 icons)
  *   Details: John has served travelers for years,
  *            and always has a story to tell.
  *
@@ -81,7 +59,15 @@
  *   ID: <same NPC ID>
  *
  * The order of lines doesn’t matter, but “Type: NPC” and “ID:” must be present in each block.
-
+ * === Version 1.2 ===
+ *
+ * Changelog:
+ *  • Added bulk operations: you can now call
+ *      AddPersonalToList <id1> <id2> <id3> …
+ *      RemovePersonalFromList <id1> <id2> …
+ *    to add or remove multiple NPCs in one command.
+ *  • RemovePersonalFromList with no arguments will now remove all NPCs defined
+ *    in the current event page, even if no ID is supplied.
  */
 
 (() => {
@@ -102,6 +88,69 @@
     return $gameSystem._personalList;
   };
 
+  function parseNpcBlocks(list, wantedId = null) {
+    const results = [];
+    let npc = null;
+    let readingNote = false;
+
+    const pushCurrent = () => {
+      if (npc && npc.typeIsNPC && npc.name && npc.id) {
+        if (!wantedId || npc.id === wantedId) results.push({ ...npc });
+      }
+    };
+
+    list.forEach((cmd) => {
+      if (cmd.code !== 108 && cmd.code !== 408) {
+        readingNote = false;
+        return;
+      }
+      const line = cmd.parameters[0].trim();
+
+      if (line.startsWith("Type:") && line.includes("NPC")) {
+        pushCurrent();
+        npc = {
+          typeIsNPC: true,
+          id: "",
+          name: "",
+          category: "",
+          faceName: "",
+          faceIndex: 0,
+          iconIndexes: [],
+          notes: "",
+        };
+        readingNote = false;
+        return;
+      }
+
+      if (!npc) return;
+
+      if (line.startsWith("ID:")) npc.id = line.slice(3).trim();
+      else if (line.startsWith("Name:")) npc.name = line.slice(5).trim();
+      else if (line.startsWith("Category:"))
+        npc.category = line.slice(9).trim();
+      else if (line.startsWith("Face:")) {
+        const [fn, fi] = line.slice(5).split(",");
+        npc.faceName = (fn || "").trim();
+        npc.faceIndex = parseInt(fi || "0", 10);
+      } else if (line.startsWith("Icon:")) {
+        npc.iconIndexes = line
+          .slice(5)
+          .split(",")
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !isNaN(n))
+          .slice(0, 3);
+      } else if (line.startsWith("Details:")) {
+        npc.notes = line.slice(8).trim();
+        readingNote = true;
+      } else if (readingNote) {
+        npc.notes += "\n" + line;
+      }
+    });
+
+    pushCurrent();
+    return results;
+  }
+
   // ────────────────────────────────────────────
   // 1) BUTTON REGISTRATION
   // ────────────────────────────────────────────
@@ -121,7 +170,6 @@
   Game_Interpreter.prototype.pluginCommand = function (command, args) {
     _Game_Interpreter_pluginCommand.call(this, command, args);
 
-    // Enable / Disable menu
     if (command === "EnablePersonalMenu") {
       $gameSystem._personalMenuEnabled = true;
       return;
@@ -131,171 +179,61 @@
       return;
     }
 
-    if (command === "RemovePersonalFromList" && args.length > 0) {
-      const idToRemove = String(args[0]);
-      $gameSystem._triggerPersonalRemoved(idToRemove);
-      $gameSystem._personalList = getPersonalList().filter(
-        (i) => i.id !== idToRemove
-      );
+    if (command === "RemovePersonalFromList") {
+      const removeId = (idToDel) => {
+        idToDel = String(idToDel);
+        const before = getPersonalList().length;
+        $gameSystem._personalList = getPersonalList().filter(
+          (i) => i.id !== idToDel
+        );
+        if (getPersonalList().length !== before) {
+          $gameSystem._triggerPersonalRemoved(idToDel);
+        }
+      };
+
+      if (args.length) {
+        args.forEach(removeId);
+        return;
+      }
+
+      const ev = $gameMap.event(this.eventId());
+      const page = ev && ev.event().pages[ev._pageIndex];
+      if (!page || !page.list) return;
+
+      parseNpcBlocks(page.list).forEach((npcObj) => removeId(npcObj.id));
       return;
     }
 
     if (command === "AddPersonalToList") {
-      const list = getPersonalList();
+      const upsert = (npc) => {
+        const list = getPersonalList();
+        const existing = list.find((i) => i.id === npc.id);
+        if (existing) Object.assign(existing, npc); // update
+        else {
+          list.push(npc); // insert
+          $gameSystem._triggerPersonalAdded(npc.id);
+        }
+        if (npc.faceName) ImageManager.loadFace(npc.faceName);
+      };
 
-      if (args.length > 0) {
-        const idToFind = args[0];
-        $gameMap.events().forEach((event) => {
-          const page = event.event().pages[event._pageIndex];
-          if (!page || !page.list) return;
-
-          let isNPC = false;
-          let name = "",
-            notes = "",
-            category = "",
-            faceName = "",
-            faceIndex = 0;
-          let iconIndexes = [],
-            readingNotes = false;
-
-          page.list.forEach((cmd) => {
-            if (cmd.code === 108 || cmd.code === 408) {
-              const line = cmd.parameters[0];
-              if (line.startsWith("Type:") && line.includes("NPC"))
-                isNPC = true;
-              if (line.startsWith("ID:")) {
-                const id = line.replace("ID:", "").trim();
-                if (id !== idToFind) isNPC = false;
-              }
-              if (line.startsWith("Name:"))
-                name = line.replace("Name:", "").trim();
-              if (line.startsWith("Category:"))
-                category = line.replace("Category:", "").trim();
-              if (line.startsWith("Face:")) {
-                const [fn, fi] = line.replace("Face:", "").trim().split(",");
-                faceName = fn.trim();
-                faceIndex = parseInt(fi || "0", 10);
-              }
-              if (line.startsWith("Details:")) {
-                notes = line.replace("Details:", "").trim();
-                readingNotes = true;
-              } else if (readingNotes) {
-                notes += "\n" + line.trim();
-              }
-              if (line.startsWith("Icon:")) {
-                iconIndexes = line
-                  .replace("Icon:", "")
-                  .split(",")
-                  .map((s) => parseInt(s.trim(), 10))
-                  .filter((n) => !isNaN(n))
-                  .slice(0, 3);
-              }
-            } else {
-              readingNotes = false;
+      if (args.length) {
+        args.forEach((targetId) => {
+          targetId = String(targetId);
+          $gameMap.events().forEach((ev) => {
+            const page = ev.event().pages[ev._pageIndex];
+            if (page && page.list) {
+              parseNpcBlocks(page.list, targetId).forEach(upsert);
             }
           });
-
-          if (isNPC && name) {
-            const existing = list.find((i) => i.id === idToFind);
-            if (existing) {
-              // update fields
-              existing.name = name;
-              existing.notes = notes;
-              existing.category = category;
-              existing.faceName = faceName;
-              existing.faceIndex = faceIndex;
-              existing.iconIndexes = iconIndexes;
-            } else {
-              // add new
-              list.push({
-                id: idToFind,
-                name,
-                notes,
-                category,
-                faceName,
-                faceIndex,
-                iconIndexes,
-              });
-              $gameSystem._triggerPersonalAdded(idToFind);
-            }
-            ImageManager.loadFace(faceName);
-          }
         });
         return;
       }
 
-      // Otherwise: add from current event
-      const event = $gameMap.event(this.eventId());
-      const page = event && event.event().pages[event._pageIndex];
+      const ev = $gameMap.event(this.eventId());
+      const page = ev && ev.event().pages[ev._pageIndex];
       if (!page || !page.list) return;
 
-      let name = "",
-        id = "",
-        notes = "",
-        category = "";
-      let typeIsNPC = false,
-        faceName = "",
-        faceIndex = 0;
-      let iconIndexes = [],
-        isNotesSection = false;
-
-      page.list.forEach((cmd) => {
-        if (cmd.code === 108 || cmd.code === 408) {
-          const line = cmd.parameters[0];
-          if (line.startsWith("Type:") && line.includes("NPC")) {
-            typeIsNPC = true;
-          } else if (line.startsWith("Name:")) {
-            name = line.replace("Name:", "").trim();
-          } else if (line.startsWith("ID:")) {
-            id = line.replace("ID:", "").trim();
-          } else if (line.startsWith("Category:")) {
-            category = line.replace("Category:", "").trim();
-          } else if (line.startsWith("Face:")) {
-            const [fn, fi] = line.replace("Face:", "").trim().split(",");
-            faceName = fn.trim();
-            faceIndex = parseInt(fi || "0", 10);
-          } else if (line.startsWith("Details:")) {
-            notes = line.replace("Details:", "").trim();
-            isNotesSection = true;
-          } else if (isNotesSection) {
-            notes += "\n" + line.trim();
-          } else if (line.startsWith("Icon:")) {
-            iconIndexes = line
-              .replace("Icon:", "")
-              .split(",")
-              .map((s) => parseInt(s.trim(), 10))
-              .filter((n) => !isNaN(n))
-              .slice(0, 3);
-          }
-        } else {
-          isNotesSection = false;
-        }
-      });
-
-      if (typeIsNPC && name) {
-        const existing = list.find((i) => i.id === id);
-        if (existing) {
-          existing.name = name;
-          existing.notes = notes;
-          existing.category = category;
-          existing.faceName = faceName;
-          existing.faceIndex = faceIndex;
-          existing.iconIndexes = iconIndexes;
-        } else {
-          // add
-          list.push({
-            id,
-            name,
-            notes,
-            category,
-            faceName,
-            faceIndex,
-            iconIndexes,
-          });
-          $gameSystem._triggerPersonalAdded(id);
-        }
-        ImageManager.loadFace(faceName);
-      }
+      parseNpcBlocks(page.list).forEach(upsert);
     }
   };
 
